@@ -1,4 +1,6 @@
 from uuid import uuid4
+from pathlib import Path
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -22,11 +24,32 @@ from app.workers.process_upload import process_upload_worker
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
-ALLOWED_CONTENT_TYPES = {
-    "application/pdf",
-    "image/png",
-    "image/jpeg",
-}
+# ✅ Allowed extensions (RELIABLE across mobile/web)
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
+
+
+def detect_file_type(file: UploadFile) -> FileType:
+    """
+    Detect file type using filename extension.
+    Mobile clients often send content-type as application/octet-stream.
+    """
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must have a filename",
+        )
+
+    ext = Path(file.filename).suffix.lower()
+
+    if ext == ".pdf":
+        return FileType.pdf
+    if ext in {".png", ".jpg", ".jpeg"}:
+        return FileType.image
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Unsupported file extension: {ext}",
+    )
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -44,13 +67,11 @@ async def create_new_upload(
             detail="No files uploaded",
         )
 
+    # ✅ Validate all files FIRST
     for file in files:
-        if file.content_type not in ALLOWED_CONTENT_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file type: {file.content_type}",
-            )
+        detect_file_type(file)
 
+    # Create upload record
     upload = Upload(
         exam_id=exam_id,
         user_id=current_user.id,
@@ -59,14 +80,12 @@ async def create_new_upload(
     )
 
     db.add(upload)
-    await db.flush()
+    await db.flush()  # get upload.id
 
-    file_records = []
+    file_records: list[FileModel] = []
 
     for file in files:
-        file_type = (
-            FileType.pdf if file.content_type == "application/pdf" else FileType.image
-        )
+        file_type = detect_file_type(file)
 
         s3_key = f"uploads/{upload.id}/{uuid4()}_{file.filename}"
 
@@ -81,13 +100,15 @@ async def create_new_upload(
         db.add(file_record)
         file_records.append(file_record)
 
-        # 🔥 S3 upload happens here (async)
+        # 🔥 Upload to S3 (async)
         await upload_file_to_s3(file, s3_key)
 
+    # Mark upload as processing
     upload.status = UploadStatus.processing
 
     await db.commit()
 
+    # Background processing
     background_tasks.add_task(process_upload_worker, upload.id)
 
     return {
