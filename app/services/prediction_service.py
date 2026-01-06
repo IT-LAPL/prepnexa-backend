@@ -1,60 +1,71 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from collections import defaultdict
+from typing import List
 
 from app.models.question import Question
 from app.models.question_topic import QuestionTopic
 from app.models.exam import Topic
 
 
-async def predict_topics(
-    db: AsyncSession,
-    exam_id,
-    subject_id,
-    target_year: int,
-    top_k: int = 10,
-):
-    """
-    Returns top-K predicted topics with probabilities
-    """
+class TopicPredictionService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
 
-    stmt = (
-        select(
-            Topic.id,
-            Topic.name,
-            Question.year,
-            func.count(Question.id).label("q_count"),
+    async def predict_topics(
+        self,
+        exam_id,
+        subject_id,
+        target_year: int,
+        top_k: int = 10,
+    ) -> List[dict]:
+        """Returns top-K predicted topics with probabilities.
+
+        The implementation weights topics by question counts and recency.
+        """
+
+        stmt = (
+            select(
+                Topic.id,
+                Topic.name,
+                Question.year,
+                func.count(Question.id).label("q_count"),
+            )
+            .join(QuestionTopic, QuestionTopic.topic_id == Topic.id)
+            .join(Question, Question.id == QuestionTopic.question_id)
+            .where(
+                Question.exam_id == exam_id,
+                Question.subject_id == subject_id,
+            )
+            .group_by(Topic.id, Topic.name, Question.year)
         )
-        .join(QuestionTopic, QuestionTopic.topic_id == Topic.id)
-        .join(Question, Question.id == QuestionTopic.question_id)
-        .where(
-            Question.exam_id == exam_id,
-            Question.subject_id == subject_id,
-        )
-        .group_by(Topic.id, Topic.name, Question.year)
-    )
 
-    result = await db.execute(stmt)
-    rows = result.all()
+        result = await self.db.execute(stmt)
+        rows = result.all()
 
-    year_min = min(r.year for r in rows)
-    topic_scores = defaultdict(float)
+        if not rows:
+            return []
 
-    for r in rows:
-        year_weight = r.year - year_min + 1
-        topic_scores[r.name] += r.q_count * year_weight
+        year_min = min(r.year for r in rows)
+        topic_scores = defaultdict(float)
 
-    total_score = sum(topic_scores.values())
+        for r in rows:
+            year_weight = r.year - year_min + 1
+            topic_scores[r.name] += r.q_count * year_weight
 
-    predictions = [
-        {
-            "topic": topic,
-            "score": round(score, 2),
-            "probability": round(score / total_score, 3),
-        }
-        for topic, score in topic_scores.items()
-    ]
+        total_score = sum(topic_scores.values())
+        if total_score == 0:
+            return []
 
-    predictions.sort(key=lambda x: x["score"], reverse=True)
+        predictions = [
+            {
+                "topic": topic,
+                "score": round(score, 2),
+                "probability": round(score / total_score, 3),
+            }
+            for topic, score in topic_scores.items()
+        ]
 
-    return predictions[:top_k]
+        predictions.sort(key=lambda x: x["score"], reverse=True)
+
+        return predictions[:top_k]

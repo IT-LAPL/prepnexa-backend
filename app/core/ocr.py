@@ -59,4 +59,4 @@ def extract_text(path: str) -> str:
         return extract_text_from_pdf(path)
 
     image = Image.open(path)
-    return extract_text_from_image(path)
+    return extract_text_from_image(image)

@@ -25,11 +25,13 @@ async def test_login_success(monkeypatch):
         updated_at=datetime.now(timezone.utc),
     )
 
-    async def fake_get_user_by_email(db, email):
+    async def fake_authenticate(self, email, password):
         return user
 
-    # monkeypatch the function where the router actually imported it
-    monkeypatch.setattr("app.routers.users.get_user_by_email", fake_get_user_by_email)
+    # monkeypatch the service method used by the router
+    monkeypatch.setattr(
+        "app.services.user_service.UserService.authenticate", fake_authenticate
+    )
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

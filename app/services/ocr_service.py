@@ -3,7 +3,7 @@ from pdf2image import convert_from_bytes
 from PIL import Image
 import io
 
-from app.core.s3 import s3  # your existing S3 client
+from app.core.aws import s3
 from app.models.file import File, FileType
 from app.core.config import settings
 

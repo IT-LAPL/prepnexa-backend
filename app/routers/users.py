@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.core.security import create_access_token, verify_password
-from app.crud.user import create_user, get_user_by_email
+from app.core.security import create_access_token
 from app.dependencies.auth import get_current_user
+from app.dependencies.services import get_user_service
+from app.services.user_service import UserService
 from app.models.user import User
 from app.schemas.auth import LoginRequest, Token
 from app.schemas.user import UserCreate, UserRead
@@ -15,25 +14,25 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_new_user(
     user_in: UserCreate,
-    db: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
 ):
-    existing = await get_user_by_email(db, user_in.email)
+    existing = await user_service.get_user_by_email(user_in.email)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-    return await create_user(db, user_in)
+    return await user_service.create_user(user_in)
 
 
 @router.post("/login", response_model=Token)
 async def login(
     data: LoginRequest,
-    db: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
 ):
-    user = await get_user_by_email(db, data.email)
+    user = await user_service.authenticate(data.email, data.password)
 
-    if not user or not verify_password(data.password, user.hashed_password):
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -41,10 +40,7 @@ async def login(
 
     access_token = create_access_token(subject=str(user.id))
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/me", response_model=UserRead)

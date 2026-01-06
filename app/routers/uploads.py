@@ -17,10 +17,11 @@ from app.core.database import get_db
 from app.core.s3 import upload_file_to_s3
 from app.dependencies.auth import get_current_user
 from app.models.file import FileType
-from app.models.upload import Upload, UploadStatus
 from app.models.file import File as FileModel
 from app.models.user import User
 from app.workers.process_upload import process_upload_worker
+from app.services.upload_service import UploadService
+from app.dependencies.services import get_upload_service
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
@@ -59,7 +60,7 @@ async def create_new_upload(
     year: int = Form(...),
     files: list[UploadFile] = File(...),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    upload_service: UploadService = Depends(get_upload_service),
 ):
     if not files:
         raise HTTPException(
@@ -71,48 +72,23 @@ async def create_new_upload(
     for file in files:
         detect_file_type(file)
 
-    # Create upload record
-    upload = Upload(
-        exam_id=exam_id,
-        user_id=current_user.id,
-        year=year,
-        status=UploadStatus.pending,
-    )
-
-    db.add(upload)
-    await db.flush()  # get upload.id
-
-    file_records: list[FileModel] = []
-
+    # Build file metadata and upload to S3
+    file_meta = []
     for file in files:
         file_type = detect_file_type(file)
-
-        s3_key = f"uploads/{upload.id}/{uuid4()}_{file.filename}"
-
-        file_record = FileModel(
-            id=str(uuid4()),
-            upload_id=upload.id,
-            file_type=file_type,
-            s3_key=s3_key,
-            original_filename=file.filename,
-        )
-
-        db.add(file_record)
-        file_records.append(file_record)
-
-        # 🔥 Upload to S3 (async)
+        # generate s3 key placeholder; upload happens here
+        s3_key = f"uploads/{{uuid4()}}_{file.filename}"
         await upload_file_to_s3(file, s3_key)
+        file_meta.append((file.filename, file_type, s3_key))
 
-    # Mark upload as processing
-    upload.status = UploadStatus.processing
+    result = await upload_service.create_upload(
+        user_id=current_user.id, exam_id=exam_id, year=year, files=file_meta
+    )
 
-    await db.commit()
-
-    # Background processing
-    background_tasks.add_task(process_upload_worker, upload.id)
+    background_tasks.add_task(process_upload_worker, result["upload"].id)
 
     return {
-        "upload_id": upload.id,
-        "files_uploaded": len(file_records),
-        "status": upload.status,
+        "upload_id": result["upload"].id,
+        "files_uploaded": len(result["files"]),
+        "status": result["upload"].status,
     }
