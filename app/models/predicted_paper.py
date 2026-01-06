@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import String, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -24,3 +24,10 @@ class PredictedPaper(Base):
     predicted_text: Mapped[str] = mapped_column(Text, nullable=False)
 
     pdf_s3_key: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # relationship for flashcards created from this predicted paper
+    flashcards = relationship(
+        "Flashcard",
+        back_populates="predicted_paper",
+        cascade="all, delete-orphan",
+    )
