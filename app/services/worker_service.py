@@ -94,9 +94,28 @@ class WorkerService:
             # use repository + service for prediction and persistence
             predicted_repo = PredictedPaperRepository(self.db)
             predicted_service = PredictedPaperService(predicted_repo)
-            await predicted_service.predict_and_store(
+            predicted_paper = await predicted_service.predict_and_store(
                 upload_id=upload.id, exam_id=upload.exam_id, context_text=combined_text
             )
+
+            # generate flashcards for the predicted paper
+            from app.repositories.flashcard_repo import FlashcardRepository
+            from app.services.flashcard_service import FlashcardService
+
+            flashcard_repo = FlashcardRepository(self.db)
+            flashcard_service = FlashcardService(flashcard_repo)
+            try:
+                await flashcard_service.generate_flashcards(
+                    user_id=str(upload.user_id),
+                    predicted_paper_id=str(predicted_paper.id),
+                    text=predicted_paper.predicted_text,
+                    max_cards=20,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to generate flashcards for predicted_paper=%s",
+                    predicted_paper.id,
+                )
 
             upload.status = UploadStatus.completed
             await self.db.commit()

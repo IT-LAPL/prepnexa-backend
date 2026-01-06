@@ -7,3 +7,4 @@ from app.models.processed_text import ProcessedText
 from app.models.exam import Exam, Subject, Topic
 from app.models.question import Question
 from app.models.question_topic import QuestionTopic
+from app.models.flashcards import Flashcard

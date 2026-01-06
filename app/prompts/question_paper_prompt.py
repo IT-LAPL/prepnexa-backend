@@ -1,5 +1,3 @@
-# app/prompts/question_paper_prompt.py
-
 QUESTION_PAPER_PROMPT = """
 You are an expert exam paper setter for Indian school examinations.
 
