@@ -107,7 +107,9 @@ def _download_fileobj_sync(
         client.download_fileobj(bucket, key, f)
 
 
-async def download_file_from_s3(s3_key: str, bucket: Optional[str] = None, s3_client=None):
+async def download_file_from_s3(
+    s3_key: str, bucket: Optional[str] = None, s3_client=None
+):
     loop = asyncio.get_running_loop()
 
     tmp_file = tempfile.NamedTemporaryFile(delete=False)

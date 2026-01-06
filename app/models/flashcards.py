@@ -66,7 +66,7 @@ class Flashcard(Base):
 
     # Relationships
     user: Mapped["User"] = relationship(
-        "User", back_populates="flashcards", cascade="all, delete-orphan"
+        "User", back_populates="flashcards", single_parent=True
     )
     predicted_paper: Mapped["PredictedPaper"] = relationship(
         "PredictedPaper", back_populates="flashcards"

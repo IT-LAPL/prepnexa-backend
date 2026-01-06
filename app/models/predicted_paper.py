@@ -25,9 +25,9 @@ class PredictedPaper(Base):
 
     pdf_s3_key: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # # relationship for flashcards created from this predicted paper
-    # flashcards = relationship(
-    #     "Flashcard",
-    #     back_populates="predicted_paper",
-    #     cascade="all, delete-orphan",
-    # )
+    # relationship for flashcards created from this predicted paper
+    flashcards = relationship(
+        "Flashcard",
+        back_populates="predicted_paper",
+        cascade="all, delete-orphan",
+    )
