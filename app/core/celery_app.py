@@ -6,5 +6,4 @@ celery_app = Celery(
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
 )
-
-celery_app.autodiscover_tasks(["app.worker"])
+celery_app.autodiscover_tasks(["app.workers"])

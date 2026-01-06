@@ -19,7 +19,7 @@ from app.dependencies.auth import get_current_user
 from app.models.file import FileType
 from app.models.file import File as FileModel
 from app.models.user import User
-from app.workers.process_upload import process_upload_worker
+from app.workers.dispatcher import enqueue_process_upload
 from app.services.upload_service import UploadService
 from app.dependencies.services import get_upload_service
 
@@ -85,7 +85,8 @@ async def create_new_upload(
         user_id=current_user.id, exam_id=exam_id, year=year, files=file_meta
     )
 
-    background_tasks.add_task(process_upload_worker, result["upload"].id)
+    # enqueue processing via Celery (with retries)
+    enqueue_process_upload(result["upload"].id)
 
     return {
         "upload_id": result["upload"].id,
