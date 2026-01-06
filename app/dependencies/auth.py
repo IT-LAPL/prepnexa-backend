@@ -5,8 +5,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.database import get_db
+from app.repositories.user_repo import UserRepository
 from app.core.config import settings
-from app.crud.user import get_user_by_id
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 
@@ -31,7 +31,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    user = await get_user_by_id(db, UUID(user_id))
+    user = await UserRepository(db).get_by_id(UUID(user_id))
     if not user:
         raise credentials_exception
 
