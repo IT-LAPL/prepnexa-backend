@@ -9,8 +9,8 @@ services:
 
   web:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: dev/Dockerfile
     command: gunicorn app.main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --access-logfile - --log-level info
     ports:
       - "8000:8000"
@@ -23,8 +23,8 @@ services:
 
   worker:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: dev/Dockerfile
     command: celery -A app.core.celery_app.celery_app worker --loglevel=info --concurrency=1
     environment:
       - REDIS_URL=redis://redis:6379/0
