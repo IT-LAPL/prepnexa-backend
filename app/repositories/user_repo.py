@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import UUID
 
+from app.core.security import hash_password
 from app.models.user import User
 from app.schemas.user import UserCreate
 
@@ -25,6 +26,7 @@ class UserRepository:
             name=user_in.name,
             avatar_url=user_in.avatar_url,
             google_id=user_in.google_id,
+            hashed_password=hash_password(user_in.password),
         )
         self.db.add(db_user)
         await self.db.commit()
