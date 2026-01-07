@@ -1,9 +1,0 @@
-services:
-  api:
-    build: .
-    container_name: prepnexa-api
-    env_file:
-      - .env
-    restart: always
-    ports:
-      - "127.0.0.1:8000:8000"
