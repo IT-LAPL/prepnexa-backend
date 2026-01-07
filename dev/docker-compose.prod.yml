@@ -1,19 +1,20 @@
-version: '3.8'
-
 services:
   redis:
     image: redis:7-alpine
+    container_name: cognix-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
 
   web:
+    image: cognix-api:latest
+    container_name: cognix-api
     build:
       context: ..
       dockerfile: dev/Dockerfile
     command: gunicorn app.main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --access-logfile - --log-level info
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379/0
       - ENV=production
@@ -22,6 +23,8 @@ services:
       - redis
 
   worker:
+    image: cognix-worker:latest
+    container_name: cognix-worker
     build:
       context: ..
       dockerfile: dev/Dockerfile
